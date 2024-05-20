@@ -428,18 +428,21 @@ def create_weight_matrix(N, neuron_types, c, a, N_I, K, patterns):
 
 def update_states_with_weight(N, W, state, neuron_types, theta, beta, update_mode):
     # Ensure state is a column vector
-    state = state.reshape(-1,1)
-    h = W.dot(state)
-    new_state = np.zeros_like(state,dtype=float)
-    #print("Updating")
-    for i in range(N):
-        #print(i)
-        if neuron_types[i] == 1:
-            new_state[i] = np.tanh(beta*(h[i] - theta))
-            #print("new_state: Excitatory", new_state[i])
-        else:
-            new_state[i] = h[i]
-            #print("new_state: Inhibitory", new_state[i])
+    if update_mode == "sequential":
+        state = state.reshape(-1,1)
+        h = W.dot(state)
+        new_state = np.zeros_like(state,dtype=float)
+        #print("Updating")
+        for i in range(N):
+            #print(i)
+            if neuron_types[i] == 1:
+                new_state[i] = np.tanh(beta*(h[i] - theta))
+                #print("new_state: Excitatory", new_state[i])
+            else:
+                new_state[i] = h[i]
+                #print("new_state: Inhibitory", new_state[i])
+    
+    #if update_mode == "synchronous" :
     return new_state
     
 
