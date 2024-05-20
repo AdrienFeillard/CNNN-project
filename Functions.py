@@ -564,3 +564,24 @@ def compute_overlaps_exc_inh(patterns, S, neuron_types, a):
     overlaps_inh = np.dot((patterns_inh - np.full(patterns.shape,a)), S_inh)
 
     return overlaps_exc, overlaps_inh
+
+def update_state_with_overlaps(patterns, S, neuron_types, a):
+    # Separate excitatory and inhibitory neurons
+    S_exc = S[neuron_types == 1]  # States of excitatory neurons
+    S_inh = S[neuron_types == 0]  # States of inhibitory neurons
+
+    overlaps_exc,overlaps_inh = compute_overlaps_exc_inh(patterns, S, neuron_types, a)
+
+    new_S_exc = np.dot(overlaps_exc, S_exc.reshape(1,-1))
+    new_S_inh = np.dot(overlaps_inh, S_inh.reshape(1,-1))
+    
+    print("New state exc",new_S_exc)
+    print("New state inh",new_S_inh)
+    # Combine updated states into a single array matching the original state array
+    new_S = np.zeros_like(S,dtype=float)
+    #print(new_S)
+    new_S[neuron_types == 1] = new_S_exc
+    #print(new_S_inh)
+    #print(new_S)
+    new_S[neuron_types == 0] = new_S_inh.ravel()
+    return new_S
