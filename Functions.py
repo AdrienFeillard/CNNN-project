@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import random
 
 ############################################ Exercice 0 ############################################
 def generate_balanced_random_patterns(N, M):
@@ -340,3 +341,223 @@ def simulate_capacity(N, M, activity, theta, beta=4, iterations=100):
 
 
 ###################################################### Exercice 3 ################################################################
+############# Retrival with weight matrix  ###############
+
+def initialize_neuron_types(N, p_exc=0.8):
+    """
+    Randomly assign each neuron as excitatory or inhibitory.
+    Args:
+    N: Total number of neurons
+    p_exc: Probability that a neuron is excitatory
+
+    Returns:
+    neuron_types: Array of neuron types (1 for excitatory, 0 for inhibitory)
+    """
+    neuron_types = np.random.choice([1, 0], size=N, p=[p_exc, 1-p_exc])
+    
+    return neuron_types
+
+def flip_bits(pattern, c, neuron_types):
+    """
+    Flip a portion 'c' of bits in the pattern, but only for excitatory neurons.
+    
+    Args:
+    pattern (np.array): The array representing the neural pattern.
+    c (float): The fraction of the excitatory neurons to flip.
+    neuron_types (np.array): An array indicating whether each neuron is excitatory (1) or inhibitory (0).
+    
+    Returns:
+    np.array: The new pattern with flipped bits for a subset of excitatory neurons.
+    """
+    pattern = pattern.reshape(-1, 1)
+    # Get indices of excitatory neurons
+    excitatory_indices = np.where(neuron_types == 1)[0]
+
+    # Choose a subset of excitatory neurons to flip
+    num_to_flip = int(len(excitatory_indices) * c)
+    #print("Number of indices to flip", num_to_flip)
+    flip_indices = np.random.choice(excitatory_indices, size=num_to_flip, replace=False)
+
+    pattern_flipped = pattern.copy()
+    #print("Flipped indices:", flip_indices)
+    for i in flip_indices:
+        pattern_flipped[i] = 1 - pattern[i]  # This flips 0 to 1 and 1 to 0
+
+    pattern_flipped = pattern_flipped.reshape(1, -1)
+    return pattern_flipped
+
+
+def create_weight_matrix(N, neuron_types, c, a, N_I, K, patterns):
+    """
+    Create a weight matrix for the neural network.
+    Args:
+    N: Total number of neurons
+    neuron_types: Array of neuron types (1 for excitatory, 0 for inhibitory)
+    c: Scaling factor for excitatory connections
+    a: Activity level of the network
+    N_I: Number of inhibitory neurons
+    K: Scaling factor for inhibitory connections
+    patterns: Array of stored patterns
+
+    Returns:
+    W: Weight matrix (N x N)
+    """
+    W = np.zeros((N, N), dtype=float)
+
+    # Get indices of excitatory and inhibitory neurons
+    exc_neurons = np.where(neuron_types == 1)[0]
+    inh_neurons = np.where(neuron_types == 0)[0]
+    
+    # Compute contributions from patterns for E-E connections
+    for pattern in patterns:
+        pattern_exc = pattern[exc_neurons]
+        # Outer product gives a matrix of all pairwise multiplications
+        W[np.ix_(exc_neurons, exc_neurons)] += c / N * np.outer(pattern_exc, pattern_exc)
+        W[neuron_types] += (-c * a / N_I)*pattern
+    # Set I-E connections (note: I-E weights are independent of patterns)
+    
+
+    # Set E-I connections (note: E-I weights are independent of patterns)
+    W[neuron_types] = 1 / K
+
+    # I-I connections are set to zero, which is already done by np.zeros
+
+    return W
+
+
+
+def update_states_with_weight(N, W, state, neuron_types, theta, beta, update_mode):
+    # Ensure state is a column vector
+    state = state.reshape(-1,1)
+    h = W.dot(state)
+    new_state = np.zeros_like(state,dtype=float)
+    #print("Updating")
+    for i in range(N):
+        #print(i)
+        if neuron_types[i] == 1:
+            new_state[i] = np.tanh(beta*(h[i] - theta))
+            #print("new_state: Excitatory", new_state[i])
+        else:
+            new_state[i] = h[i]
+            #print("new_state: Inhibitory", new_state[i])
+    return new_state
+    
+
+
+
+
+def plot_exc_inh(patterns, initial_state, w, neuron_types, N):
+    # Filter to include only excitatory neurons for pattern and state
+    excitatory_indices = np.where(neuron_types == 1)[0]
+    patterns_excitatory = patterns[:, excitatory_indices]
+    initial_state_excitatory = initial_state[:, excitatory_indices]
+
+    # Plotting
+    fig, axes = plt.subplots(1, 4, figsize=(24, 6))  # Adjusted size to accommodate four plots
+
+    sns.heatmap(patterns_excitatory, ax=axes[0], cmap='viridis', cbar=False, annot=False)
+    axes[0].set_title('Excitatory Neurons - Memory Pattern')
+
+    sns.heatmap(initial_state_excitatory, ax=axes[1], cmap='viridis', cbar=False, annot=False)
+    axes[1].set_title('Excitatory Neurons - Initial State')
+
+    sns.heatmap(w, ax=axes[2], cmap='viridis', cbar=False, annot=False)
+    axes[2].set_title('Weight Matrix')
+
+    # Plotting the neuron types
+    neuron_type_map = neuron_types.reshape(N,1 )  # Reshape for heatmap compatibility
+    sns.heatmap(neuron_type_map, ax=axes[3], cmap='coolwarm', cbar=False, annot=False)
+    axes[3].set_title('Neuron Types (Red = Excitatory, Blue = Inhibitory)')
+
+    plt.tight_layout()
+    plt.show()
+
+def run_network_exc_inh(N, M, N_i, K, a, c, theta,inh_prob, T, beta, update_mode = "sequetial", plot = True):
+    # Generate patterns
+    patterns = generate_low_activity_patterns(N, M, a)
+    #print("Patterns:\n", patterns)
+
+    
+    #plot_exc_inh(patterns, initial_state, w, neuron_types, N)
+    # Initialize retrieval accuracy list
+    retrieval_accuracies = []
+    # Iterate over each pattern
+    for idx in range(M):
+        #print(f"Pattern {patterns[idx]}")
+
+        # Initialize neuron types
+        neuron_types = initialize_neuron_types(N, inh_prob)
+        #print("Neuron types:", neuron_types)
+    
+        # Flip bits in the initial state
+        initial_state = flip_bits(patterns[idx], 0.1, neuron_types)
+        #print("Initial state:\n", initial_state)
+        
+        # Create the weight matrix
+        w = create_weight_matrix(N, neuron_types, c, a, N_i, K, patterns[idx].reshape(1, -1))
+        #print("Weights:\n", np.unique(w))
+        initial_state =initial_state.copy()
+        for i in range(T):
+            #print(f"Updating step {i}")
+           
+            initial_state = update_states_with_weight(N, w, initial_state, neuron_types, theta, beta, update_mode='sequential')
+            #print("State after update:", np.unique(initial_state))
+            # Call stochastic_spike_variable with the entire array
+            #initial_state = stochastic_spike_variable(initial_state)
+            #print("State after stochastic update:", np.unique(initial_state))
+            #plot_exc_inh(patterns, initial_state.reshape(1,-1), w, neuron_types, N)
+    #initial_state = stochastic_spike_variable(initial_state)
+    for pattern in patterns:
+        accuracy = 1 - hamming_distance(initial_state, pattern.reshape(1,-1)) / N
+        retrieval_accuracies.append(accuracy)
+        
+    #print(np.unique(initial_state[np.where(neuron_types == 1)]))
+    #print(np.unique(initial_state))
+    if plot:
+        plot_exc_inh(patterns, initial_state.reshape(1,-1), w, neuron_types, N)
+    
+    return np.mean(retrieval_accuracies)
+
+def real_test():
+    N = 300
+    M = 1
+    N_i = 80
+    K = 60
+    a = 0.1
+    c = 2 / (a * (1-a))
+    theta = 0.
+    inh_prob = (N-N_i)/N
+    T = 10
+    beta = 1.
+    
+    run_network_exc_inh(N, M, N_i, K, a, c, theta, inh_prob, T, beta)
+
+
+
+def compute_overlaps_exc_inh(patterns, S, neuron_types, a):
+    """
+    Compute the overlaps m_mu for each pattern.
+    
+    Args:
+    patterns (numpy.ndarray): Array of stored patterns in the network.
+    S (numpy.ndarray): Current state of the network.
+    neuron_types (numpy.ndarray): Array indicating neuron type (1 for excitatory, 0 for inhibitory).
+    a (float): Activity level of the network.
+    
+    Returns:
+    tuple: Tuple containing overlaps for excitatory neurons (m_mu_exc) and inhibitory neurons (m_mu_inh).
+    """
+    # Separate excitatory and inhibitory neurons
+    S_exc = S[neuron_types == 1]  # States of excitatory neurons
+    S_inh = S[neuron_types == 0]  # States of inhibitory neurons
+
+    patterns_exc = patterns[:, neuron_types == 1]  # Patterns for excitatory neurons
+    patterns_inh = patterns[:, neuron_types == 0]  # Patterns for inhibitory neurons
+
+    # Compute overlaps for excitatory neurons
+    overlaps_exc = np.dot((patterns_exc - np.full(patterns.shape,a)), S_exc)
+
+    # Compute overlaps for inhibitory neurons
+    overlaps_inh = np.dot((patterns_inh - np.full(patterns.shape,a)), S_inh)
+
+    return overlaps_exc, overlaps_inh
