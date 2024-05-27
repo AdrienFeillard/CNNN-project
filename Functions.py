@@ -340,7 +340,9 @@ def capacity_vs_theta(patterns,N,a,b,theta_values,T=20,beta=4):
                 state = np.array([stochastic_spike_variable(si) for si in state])
             if hamming_distance_V2(state,pattern) <= 0.05:
                 retrieval_counts+=1
+        print(retrieval_counts)
         capacities.append(retrieval_counts/N)
+        
     return capacities,
 
 def capacity_study_theta(N,M_values,a,b, theta_values, trials=10):
@@ -348,7 +350,7 @@ def capacity_study_theta(N,M_values,a,b, theta_values, trials=10):
       # Range of theta values to test
     M_capacities=np.zeros((len(M_values), len(theta_values)))
     for i, M in enumerate(M_values):
-        print(M)
+        #print(M)
         patterns = generate_low_activity_patterns(N, M,a)
         capacities = capacity_vs_theta(patterns,N,a,b,theta_values)
         
@@ -591,74 +593,8 @@ def real_test():
 
 
 ################# same calculations with overlaps ###########
-'''
-def compute_overlaps_exc_inh(patterns, S, neuron_types, a):
-    """
-    Compute the overlaps m_mu for each pattern.
-    
-    Args:
-    patterns (numpy.ndarray): Array of stored patterns in the network.
-    S (numpy.ndarray): Current state of the network.
-    neuron_types (numpy.ndarray): Array indicating neuron type (1 for excitatory, 0 for inhibitory).
-    a (float): Activity level of the network.
-    
-    Returns:
-    tuple: Tuple containing overlaps for excitatory neurons (m_mu_exc) and inhibitory neurons (m_mu_inh).
-    """
-    #S = S.flatten()
-    # Separate excitatory and inhibitory neurons
 
-    S = S.flatten()
-    # Separate excitatory and inhibitory neurons
-    S_exc = S[neuron_types == 1]  # States of excitatory neurons
-    S_inh = S[neuron_types == 0]  # States of inhibitory neurons
 
-    patterns_exc = patterns[:, neuron_types == 1]  # Patterns for excitatory neurons
-    patterns_inh = patterns[:, neuron_types == 0]  # Patterns for inhibitory neurons
-
-    # Compute overlaps for excitatory neurons
-    
-    overlaps_exc = np.dot((patterns_exc - a),S_exc)
-
-    # Compute overlaps for inhibitory neurons
-    #overlaps_inh = np.dot((patterns_inh - np.full(patterns.shape,a)), S_inh)
-    overlaps_inh = (1/S_inh.size)*patterns_inh
-    
-    return overlaps_exc,overlaps_inh
-
-    
-    overlaps_inh = np.zeros(S_inh.shape, dtype=float)
-    for pattern_inh in patterns_inh:
-        overlaps_inh += 1/(S_inh.size)*pattern_inh
-    
-
-def update_state_with_overlaps(patterns, S, neuron_types, a,beta,theta):
-    S.flatten()
-    # Separate excitatory and inhibitory neurons
-    S_exc = S[:,neuron_types == 1]  # States of excitatory neurons
-    S_inh = S[:,neuron_types == 0]  # States of inhibitory neurons
-    
-    overlaps_exc,overlaps_inh = compute_overlaps_exc_inh(patterns, S, neuron_types, a)
-    
-    # Update states using the overlaps: apply activation function to excitatory and direct assignment to inhibitory
-    new_S_exc = np.dot(overlaps_exc, S_exc.reshape(1,-1))
-    
-    new_S_inh = np.dot(overlaps_inh.T, S_inh.reshape(1,-1))
-    
-    print("New state exc",new_S_exc)
-    print("New state inh",new_S_inh)
-    # Combine updated states into a single array matching the original state array
-    new_S = np.zeros_like(S,dtype=float)
-    #print(new_S)
-    new_S[neuron_types == 1] = new_S_exc
-
-    new_S[neuron_types == 0] = new_S_inh.ravel()
-
-    new_S= np.tanh(beta*(new_S - theta))
-    
-    print("New state before phi function:", new_S)
-    return new_S
-    '''
 def compute_overlaps_exc_inh(patterns, S, neuron_types, a,K, N_i,c,N):
     """
     Compute the overlaps m_mu for each pattern.
