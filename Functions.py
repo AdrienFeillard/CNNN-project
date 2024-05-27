@@ -257,11 +257,11 @@ def stochastic_spike_variable(S):
     """
     return np.random.binomial(1, 0.5 * (S + 1))
 
-def compute_overlaps(patterns, S, a):
+def compute_overlaps(patterns, S,a):
     """
     Compute the overlaps m_mu for each pattern.
     """
-    overlaps= (2/(a*(1-a)))*np.dot((patterns-np.full((patterns.shape),a)),S)
+    overlaps= (2/(a*(1-a)))*np.dot((patterns-a),S)
    
     return overlaps
 
@@ -269,7 +269,7 @@ def update_states_with_overlaps(patterns, overlaps,theta, beta,b):
     """
     Update the states of the network based on overlaps and pattern influence.
     """
-    H= np.dot(overlaps,(patterns-np.full((patterns.shape),b)))
+    H= np.dot(overlaps,(patterns-b))
     H-=theta
     return np.tanh(beta * H)
 
@@ -285,7 +285,7 @@ def run_simulation_low_activity(N, M, a, b, theta_values, beta, T, c=2):
     for theta in theta_values:
             S = initial_state.copy()
             for t in range(T):
-                overlaps = compute_overlaps(patterns, S, a)
+                overlaps = compute_overlaps(patterns, S,a)
                 S = update_states_with_overlaps(patterns, overlaps,theta, beta,b)
                 S = np.array([stochastic_spike_variable(si) for si in S])
             # Evaluate performance after the last update
@@ -299,17 +299,19 @@ def run_simulation_low_activity(N, M, a, b, theta_values, beta, T, c=2):
 def pattern_retrieval_error_and_count_low(patterns, N,a,theta, T=50, beta=4):
     retrieval_errors = []
     retrieval_counts = []
+
+
     for pattern in patterns:
         initial_state = flip_bits_V1(pattern, c=0.05)
         state = initial_state.copy()
         for t in range(T):
-            overlaps = compute_overlaps(patterns, state, a)
+            overlaps = compute_overlaps(patterns, state,a)
             state = update_states_with_overlaps(patterns,overlaps,theta, beta,a)
             state = np.array([stochastic_spike_variable(si) for si in state])
         retrieval_errors.append(hamming_distance_V2(state,pattern))
 
         retrieval_counts.append(hamming_distance_V2(state,pattern) <= 0.05)
-        print(retrieval_counts)
+
     return np.mean(retrieval_errors), np.std(retrieval_errors), np.sum(retrieval_counts)
 
 def run_low_activity_simulation_dictionary(M, a,theta,N=300, iterations=5,beta=4):
@@ -324,7 +326,7 @@ def run_low_activity_simulation_dictionary(M, a,theta,N=300, iterations=5,beta=4
         pattern_counts.append(count)
     return np.mean(mean_errors), np.mean(std_errors), np.mean(pattern_counts)
 
-def capacity_vs_theta(patterns,N,a,theta_values,T=20,beta=4):
+def capacity_vs_theta(patterns,N,a,b,theta_values,T=20,beta=4):
 
     capacities=[]
     for theta in theta_values:
@@ -334,21 +336,21 @@ def capacity_vs_theta(patterns,N,a,theta_values,T=20,beta=4):
             state=initial_state.copy()
             for t in range(T):
                 overlaps = compute_overlaps(patterns,state,a)
-                state = update_states_with_overlaps(patterns,overlaps,theta, beta,a)
+                state = update_states_with_overlaps(patterns,overlaps,theta, beta,b)
                 state = np.array([stochastic_spike_variable(si) for si in state])
             if hamming_distance_V2(state,pattern) <= 0.05:
                 retrieval_counts+=1
         capacities.append(retrieval_counts/N)
     return capacities,
 
-def capacity_study_theta(N,M_values,a, theta_values, trials=10):
+def capacity_study_theta(N,M_values,a,b, theta_values, trials=10):
     """Study the capacity of Hopfield networks across different sizes of dictionary and theta values."""
       # Range of theta values to test
     M_capacities=np.zeros((len(M_values), len(theta_values)))
     for i, M in enumerate(M_values):
         print(M)
         patterns = generate_low_activity_patterns(N, M,a)
-        capacities = capacity_vs_theta(patterns,N,a,theta_values)
+        capacities = capacity_vs_theta(patterns,N,a,b,theta_values)
         
         capacities=np.reshape(capacities,(len(capacities[0]),))
         M_capacities[i]+=capacities
