@@ -569,12 +569,11 @@ def compute_h_in_terms_of_overlaps(pattern, S, neuron_types, a, c, K, patterns, 
     # Compute total input to first inhibitory neurons
     h_inh_1 = np.zeros(N_I1)
     for k in range(N_I1):
-        h_inh_1[k] = np.sum(S_exc) / K
-
+        h_inh_1[k] = 1 / K
     # Compute total input to second inhibitory neurons (only if use_second_inhibitory is True and mean activity of excitatory neurons exceeds a)
     if use_second_inhibitory and np.sum(S_exc)/N > a:
         for k in range(N_I2):
-            h_inh_2[k] = np.sum(S_exc) / K
+            h_inh_2[k] = 1 / K
 
     # Combine the total inputs
     h = np.zeros_like(S, dtype=float)
