@@ -242,16 +242,20 @@ def hamming_distance_V2(P, Q):
 
     return np.sum(P != Q,dtype=float) /(2*len(P))
 
-def flip_bits_V2(pattern, c):
-    flip_indices = np.random.choice(len(pattern), size=int(len(pattern) * c), replace=False)
-    pattern_flipped = pattern.copy()
-    for indices in flip_indices:
-        if pattern_flipped[indices] == 1:
-            pattern_flipped[indices] == 0
-        elif pattern_flipped[indices] == 0:
-            pattern_flipped[indices] == 1
 
-    
+def flip_bits_V2(pattern, c):
+    # Determine the number of bits to flip
+    num_flips = int(len(pattern) * c)
+
+    # Choose indices to flip
+    flip_indices = np.random.choice(len(pattern), size=num_flips, replace=False)
+
+    # Create a copy of the pattern to avoid modifying the original
+    pattern_flipped = pattern.copy()
+
+    # Flip the bits at the chosen indices
+    pattern_flipped[flip_indices] = 1 - pattern_flipped[flip_indices]
+
     return pattern_flipped
 
 def stochastic_spike_variable(S):
@@ -434,6 +438,8 @@ def initialize_neuron_types(N, M, p_exc=0.8, include_second_inhibitory=False):
         neuron_types_list.append(neuron_types)
     return neuron_types_list
 
+import numpy as np
+
 def flip_bits_V3(patterns, c, neuron_types, include_second_inhibitory=False):
     """
     Flip a portion 'c' of bits in the pattern, but only for excitatory neurons.
@@ -447,25 +453,31 @@ def flip_bits_V3(patterns, c, neuron_types, include_second_inhibitory=False):
     Returns:
     np.array: The new patterns with flipped bits for a subset of excitatory neurons.
     """
+    # Get indices of excitatory neurons
+    excitatory_indices = np.where(neuron_types == 1)[0]
+
+    # Number of excitatory neurons to flip
+    num_to_flip = int(len(excitatory_indices) * c)
+
+    # Prepare a list to store the flipped patterns
     initial_state_list = []
+
     for pattern in patterns:
-        pattern = pattern.reshape(-1, 1)
-        # Get indices of excitatory neurons
-        excitatory_indices = np.where(neuron_types == 1)[0]
+        pattern = pattern.reshape(-1)
 
         # Choose a subset of excitatory neurons to flip
-        num_to_flip = int(len(excitatory_indices) * c)
         flip_indices = np.random.choice(excitatory_indices, size=num_to_flip, replace=False)
 
+        # Create a copy of the pattern to avoid modifying the original
         pattern_flipped = pattern.copy()
-        for i in flip_indices:
-            pattern_flipped[i] = 1 - pattern[i]  # This flips 0 to 1 and 1 to 0
 
-        pattern_flipped = pattern_flipped.reshape(1, -1)
-        initial_state_list.append(pattern_flipped)
+        # Flip the bits at the chosen indices
+        pattern_flipped[flip_indices] = 1 - pattern_flipped[flip_indices]
+
+        # Append the flipped pattern to the list
+        initial_state_list.append(pattern_flipped.reshape(1, -1))
 
     return initial_state_list
-
 def hamming_distance_V3(P1, P2):
     """Compute the Hamming distance between two binary vectors."""
     """
