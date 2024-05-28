@@ -2,8 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import random
-random.seed(0)
-np.random.seed(0)
 
 ############################################ Exercice 0 ############################################
 def generate_balanced_random_patterns(N, M):
@@ -181,12 +179,23 @@ def capacity_study(N_values, loading_values, trials=10):
     for N in N_values:
         print(N)
         for L in loading_values:
+            i=0
+            mean_retrieve=[]
+            std_retrieve=[]
             M = int(L * N)
-            retrieval_rates = [run_simulation_dictionary(M, N) for _ in range(trials)]
-            mean_retrieval_rate = np.mean(retrieval_rates)
-            std_retrieval_rate = np.std(retrieval_rates)
-            results[N].append((mean_retrieval_rate, std_retrieval_rate))
+            while(i<5):
+                i+=1
+                retrieval_rates = [run_simulation_dictionary(M, N) for _ in range(trials)]
+                mean_retrieve.append(retrieval_rates)
+                std_retrieve.append(np.std(retrieval_rates))
 
+            mean_retrieval_rate = np.mean(mean_retrieve)
+            std_retrieval_rate = np.mean(std_retrieve)
+                
+            results[N].append((mean_retrieval_rate, std_retrieval_rate))
+ 
+
+  
     # Plotting the results
     plt.figure(figsize=(8, 6))
     for N in N_values:
@@ -361,8 +370,8 @@ def capacity_study_theta(N,M_values,a,b, theta_values,trials=10):
     for i, M in enumerate(M_values):
         #print(M)
         patterns = generate_low_activity_patterns(N, M,a)
-        capacities = capacity_vs_theta(patterns,N,a,b,theta_values)
         
+        capacities = capacity_vs_theta(patterns,N,a,b,theta_values)
         capacities=np.reshape(capacities,(len(capacities[0]),))
         M_capacities[i]+=capacities
 
@@ -557,7 +566,7 @@ def compute_h_in_terms_of_overlaps(pattern, S, neuron_types, a, c, K, patterns, 
         #print("type 2 neuron pop",pattern[neuron_types == 2])
         #print("type 2 neurons state", S_inh_2)
     # Compute overlaps for each pattern
-    m_exc = np.dot(pattern[neuron_types == 1].reshape(1,-1), S_exc.reshape(-1,1)) / N_exc
+    m_exc = np.dot(pattern[neuron_types == 1].reshape(1,-1), S_exc.reshape(-1,1)) / N
     m_inh_1 = np.dot(pattern[neuron_types == 0].reshape(1,-1), S_inh_1.reshape(-1,1)) / N_I1
     if use_second_inhibitory and np.mean(S_exc) > a:
         m_inh_2 = np.dot(pattern[neuron_types == 2].reshape(1,-1), S_inh_2.reshape(-1,1)) / N_I2
@@ -709,7 +718,7 @@ def capacity_study_exc_inh(N_values, loading_values, N_i_values, K_values, updat
     results = {N: [] for N in N_values}
     print(use_second_population)
                 
-    a = 0.5
+    a = 0.1
     c = 2 / (a * (1-a))
     theta = 1.
     
