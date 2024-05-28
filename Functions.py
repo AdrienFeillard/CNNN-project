@@ -269,7 +269,7 @@ def update_states_with_overlaps(patterns, overlaps,theta, beta,b):
     """
     Update the states of the network based on overlaps and pattern influence.
     """
-    H= np.dot(overlaps,(patterns-b))
+    H= np.dot(overlaps,(patterns-b))/(len(patterns[0]))
     H-=theta
     return np.tanh(beta * H)
 
@@ -338,14 +338,15 @@ def capacity_vs_theta(patterns,N,a,b,theta_values,T=20,beta=4):
                 overlaps = compute_overlaps(patterns,state,a)
                 state = update_states_with_overlaps(patterns,overlaps,theta, beta,b)
                 state = np.array([stochastic_spike_variable(si) for si in state])
+
             if hamming_distance_V2(state,pattern) <= 0.05:
                 retrieval_counts+=1
-        print(retrieval_counts)
+
         capacities.append(retrieval_counts/N)
         
     return capacities,
 
-def capacity_study_theta(N,M_values,a,b, theta_values, trials=10):
+def capacity_study_theta(N,M_values,a,b, theta_values,trials=10):
     """Study the capacity of Hopfield networks across different sizes of dictionary and theta values."""
       # Range of theta values to test
     M_capacities=np.zeros((len(M_values), len(theta_values)))
