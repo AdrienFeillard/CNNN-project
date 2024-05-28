@@ -2,9 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import random
+random.seed(0)
+np.random.seed(0)
 
 ############################################ Exercice 0 ############################################
 def generate_balanced_random_patterns(N, M):
+    
     return np.array(np.random.choice([-1, 1], (M, N)),dtype=float)
 
 
@@ -14,6 +17,7 @@ def update_state(S, W, beta=4):
 
 #Ex 0.2
 def flip_bits_V1(pattern, c):
+    
     flip_indices = np.random.choice(len(pattern), size=int(len(pattern) * c), replace=False)
     pattern_flipped = pattern.copy()
     pattern_flipped[flip_indices] *= -1
@@ -399,119 +403,87 @@ def simulate_capacity(N, M, activity, theta, beta=4, iterations=100):
 ###################################################### Exercice 3 ################################################################
 ############# Retrival with weight matrix  ###############
 
-def initialize_neuron_types(N, p_exc=0.8):
+def initialize_neuron_types(N, M, p_exc=0.8, include_second_inhibitory=False):
     """
-    Randomly assign each neuron as excitatory or inhibitory.
+    Randomly assign each neuron as excitatory, first inhibitory population, or second inhibitory population based on a boolean flag.
+
     Args:
     N: Total number of neurons
+    M: Number of pattern sets
     p_exc: Probability that a neuron is excitatory
+    include_second_inhibitory: Boolean flag to include the second inhibitory population
 
     Returns:
-    neuron_types: Array of neuron types (1 for excitatory, 0 for inhibitory)
+    neuron_types_list: List of arrays of neuron types for each pattern set
     """
-    neuron_types = np.random.choice([1, 0], size=N, p=[p_exc, 1-p_exc])
-    
-    return neuron_types
+    neuron_types_list = []
+    for i in range(M):
+        if include_second_inhibitory:
+            # Calculate probabilities for inhibitory populations
+            p_inh_total = 1 - p_exc
+            p_inh1 = p_inh_total / 2
+            p_inh2 = p_inh_total / 2
 
-def flip_bits(pattern, c, neuron_types):
+            # Ensure the probabilities sum to 1
+            assert np.isclose(p_exc + p_inh1 + p_inh2, 1.0), "Probabilities must sum to 1"
+            neuron_types = np.random.choice([1, 0, 2], size=N, p=[p_exc, p_inh1, p_inh2])
+        else:
+            # Only excitatory and first inhibitory population
+            assert np.isclose(p_exc + (1 - p_exc), 1.0), "Probabilities must sum to 1"
+            neuron_types = np.random.choice([1, 0], size=N, p=[p_exc, 1 - p_exc])
+        neuron_types_list.append(neuron_types)
+    return neuron_types_list
+
+def flip_bits_V3(patterns, c, neuron_types, include_second_inhibitory=False):
     """
     Flip a portion 'c' of bits in the pattern, but only for excitatory neurons.
-    
+
     Args:
-    pattern (np.array): The array representing the neural pattern.
+    patterns (np.array): The array representing the neural patterns.
     c (float): The fraction of the excitatory neurons to flip.
-    neuron_types (np.array): An array indicating whether each neuron is excitatory (1) or inhibitory (0).
-    
-    Returns:
-    np.array: The new pattern with flipped bits for a subset of excitatory neurons.
-    """
-    pattern = pattern.reshape(-1, 1)
-    # Get indices of excitatory neurons
-    excitatory_indices = np.where(neuron_types == 1)[0]
-
-    # Choose a subset of excitatory neurons to flip
-    num_to_flip = int(len(excitatory_indices) * c)
-    #print("Number of indices to flip", num_to_flip)
-    flip_indices = np.random.choice(excitatory_indices, size=num_to_flip, replace=False)
-
-    pattern_flipped = pattern.copy()
-    #print("Flipped indices:", flip_indices)
-    for i in flip_indices:
-        pattern_flipped[i] = 1 - pattern[i]  # This flips 0 to 1 and 1 to 0
-
-    pattern_flipped = pattern_flipped.reshape(1, -1)
-    return pattern_flipped
-
-
-def create_weight_matrix(N, neuron_types, c, a, N_I, K, patterns):
-    """
-    Create a weight matrix for the neural network.
-    Args:
-    N: Total number of neurons
-    neuron_types: Array of neuron types (1 for excitatory, 0 for inhibitory)
-    c: Scaling factor for excitatory connections
-    a: Activity level of the network
-    N_I: Number of inhibitory neurons
-    K: Scaling factor for inhibitory connections
-    patterns: Array of stored patterns
+    neuron_types (np.array): An array indicating whether each neuron is excitatory (1), first inhibitory (0), or second inhibitory (2).
+    include_second_inhibitory (bool): Whether to include the second inhibitory population.
 
     Returns:
-    W: Weight matrix (N x N)
+    np.array: The new patterns with flipped bits for a subset of excitatory neurons.
     """
-    W = np.zeros((N, N), dtype=float)
-
-    # Get indices of excitatory and inhibitory neurons
-    exc_neurons = np.where(neuron_types == 1)[0]
-    inh_neurons = np.where(neuron_types == 0)[0]
-    
-    # Compute contributions from patterns for E-E connections
+    initial_state_list = []
     for pattern in patterns:
-        pattern_exc = pattern[exc_neurons]
-        # Outer product gives a matrix of all pairwise multiplications
-        W[np.ix_(exc_neurons, exc_neurons)] += c / N * np.outer(pattern_exc, pattern_exc)
-        W[neuron_types] += (-c * a / N_I)*pattern
-    # Set I-E connections (note: I-E weights are independent of patterns)
-    
+        pattern = pattern.reshape(-1, 1)
+        # Get indices of excitatory neurons
+        excitatory_indices = np.where(neuron_types == 1)[0]
 
-    # Set E-I connections (note: E-I weights are independent of patterns)
-    W[neuron_types] = 1 / K
+        # Choose a subset of excitatory neurons to flip
+        num_to_flip = int(len(excitatory_indices) * c)
+        flip_indices = np.random.choice(excitatory_indices, size=num_to_flip, replace=False)
 
-    # I-I connections are set to zero, which is already done by np.zeros
+        pattern_flipped = pattern.copy()
+        for i in flip_indices:
+            pattern_flipped[i] = 1 - pattern[i]  # This flips 0 to 1 and 1 to 0
 
-    return W
+        pattern_flipped = pattern_flipped.reshape(1, -1)
+        initial_state_list.append(pattern_flipped)
 
+    return initial_state_list
 
+def hamming_distance_V3(P1, P2):
+    """Compute the Hamming distance between two binary vectors."""
+    """
+    P1 = P1.ravel()
+    P2 = P2.ravel()
+    print(P1.shape)
+    return (P1.shape[0] - np.dot(P1.reshape(1,-1), P2.reshape(-1,1))) / (2 * P1.shape[0])
+    """
+    #print(P1.ravel(),P2.ravel())
+    return np.sum(P1.ravel() !=P2.ravel())/(2*P1.shape[0])
 
-def update_states_with_weight(N, W, state, neuron_types, theta, beta, update_mode):
-    # Ensure state is a column vector
-    if update_mode == "sequential":
-        state = state.reshape(-1,1)
-        h = W.dot(state)
-        new_state = np.zeros_like(state,dtype=float)
-        #print("Updating")
-        for i in range(N):
-            #print(i)
-            if neuron_types[i] == 1:
-                new_state[i] = np.tanh(beta*(h[i] - theta))
-                
-                #print("new_state: Excitatory", new_state[i])
-            else:
-                new_state[i] = h[i]
-                #print("new_state: Inhibitory", new_state[i])
-    
-    #if update_mode == "synchronous" :
-    return new_state
-    
-
-
-
-
-def plot_exc_inh(patterns, initial_state, w, neuron_types, N):
+def plot_exc_inh(patterns, initial_state, neuron_types, N,h):
     # Filter to include only excitatory neurons for pattern and state
     excitatory_indices = np.where(neuron_types == 1)[0]
-    patterns_excitatory = patterns[:,excitatory_indices]
+    patterns= patterns.reshape(1,-1)
+    patterns_excitatory = patterns[:, excitatory_indices]
     initial_state_excitatory = initial_state[:, excitatory_indices]
-
+    
     # Plotting
     fig, axes = plt.subplots(1, 4, figsize=(24, 6))  # Adjusted size to accommodate four plots
 
@@ -521,230 +493,266 @@ def plot_exc_inh(patterns, initial_state, w, neuron_types, N):
     sns.heatmap(initial_state_excitatory, ax=axes[1], cmap='viridis', cbar=False, annot=False)
     axes[1].set_title('Excitatory Neurons - Initial State')
 
-    sns.heatmap(w, ax=axes[2], cmap='viridis', cbar=False, annot=False)
-    axes[2].set_title('Weight Matrix')
+    
+    
 
     # Plotting the neuron types
     neuron_type_map = neuron_types.reshape(N,1 )  # Reshape for heatmap compatibility
-    sns.heatmap(neuron_type_map, ax=axes[3], cmap='coolwarm', cbar=False, annot=False)
-    axes[3].set_title('Neuron Types (Red = Excitatory, Blue = Inhibitory)')
+    sns.heatmap(neuron_type_map, ax=axes[2], cmap='coolwarm', cbar=False, annot=False)
+    axes[2].set_title('Neuron Types (Red = Excitatory, Blue = Inhibitory)')
+
+    sns.heatmap(h.reshape(-1,1), ax=axes[3], cmap='viridis', cbar=False, annot=False)
+    axes[3].set_title('Overlap function h')
 
     plt.tight_layout()
     plt.show()
 
-def run_network_exc_inh(N, M, N_i, K, a, c, theta,inh_prob, T, beta, update_mode = "sequetial", plot = True):
-    # Generate patterns
-    patterns = generate_low_activity_patterns(N, M, a)
-    #print("Patterns:\n", patterns)
-
-    
-    #plot_exc_inh(patterns, initial_state, w, neuron_types, N)
-    # Initialize retrieval accuracy list
-    retrieval_accuracies = []
-    # Iterate over each pattern
-    for idx in range(M):
-        #print(f"Pattern {patterns[idx]}")
-
-        # Initialize neuron types
-        neuron_types = initialize_neuron_types(N, inh_prob)
-        #print("Neuron types:", neuron_types)
-    
-        # Flip bits in the initial state
-        initial_state = flip_bits(patterns[idx], 0.1, neuron_types)
-        #print("Initial state:\n", initial_state)
-        
-        # Create the weight matrix
-        w = create_weight_matrix(N, neuron_types, c, a, N_i, K, patterns[idx].reshape(1, -1))
-        #print("Weights:\n", np.unique(w))
-        #state =initial_state.copy()
-        for i in range(T):
-            #print(f"Updating step {i}")
-           
-            initial_state = update_states_with_weight(N, w, initial_state, neuron_types, theta, beta, update_mode='sequential')
-            #print("State after update:", np.unique(initial_state))
-            # Call stochastic_spike_variable with the entire array
-            #initial_state = stochastic_spike_variable(initial_state)
-            #print("State after stochastic update:", np.unique(initial_state))
-            #plot_exc_inh(patterns, initial_state.reshape(1,-1), w, neuron_types, N)
-    #initial_state = stochastic_spike_variable(initial_state)
-    for pattern in patterns:
-        accuracy = 1 - hamming_distance(initial_state, pattern.reshape(1,-1)) / N
-        retrieval_accuracies.append(accuracy)
-        
-    #print(np.unique(initial_state[np.where(neuron_types == 1)]))
-    #print(np.unique(initial_state))
-    if plot:
-        plot_exc_inh(patterns, initial_state.reshape(1,-1), w, neuron_types, N)
-    
-    return np.mean(retrieval_accuracies)
-
-def real_test():
-    N = 300
-    M = 1
-    N_i = 80
-    K = 60
-    a = 0.1
-    c = 2 / (a * (1-a))
-    theta = 0.
-    inh_prob = (N-N_i)/N
-    T = 10
-    beta = 1.
-    
-    run_network_exc_inh(N, M, N_i, K, a, c, theta, inh_prob, T, beta)
-
-
-################# same calculations with overlaps ###########
-
-
-def compute_overlaps_exc_inh(patterns, S, neuron_types, a,K, N_i,c,N):
+def compute_h_in_terms_of_overlaps(pattern, S, neuron_types, a, c, K, patterns, use_second_inhibitory, use_external_input,J):
     """
-    Compute the overlaps m_mu for each pattern.
-    
+    Compute the total input h for excitatory and inhibitory neurons in terms of the overlap variables.
+
     Args:
     patterns (numpy.ndarray): Array of stored patterns in the network.
     S (numpy.ndarray): Current state of the network.
-    neuron_types (numpy.ndarray): Array indicating neuron type (1 for excitatory, 0 for inhibitory).
+    neuron_types (numpy.ndarray): Array indicating neuron type (1 for excitatory, 0 for first inhibitory population, 2 for second inhibitory population).
     a (float): Activity level of the network.
-    
+    c (float): Scaling factor.
+    K (int): Number of excitatory neurons each inhibitory neuron connects to.
+    use_second_inhibitory (bool): Whether to include the second inhibitory population in the calculations.
+
     Returns:
-    tuple: Tuple containing overlaps for excitatory neurons (m_mu_exc) and inhibitory neurons (m_mu_inh).   
+    numpy.ndarray: Total input h for all neurons.
     """
-    S = S.flatten()
+    N = len(S)
+    num_patterns = patterns.shape[0]
+
     # Separate excitatory and inhibitory neurons
     S_exc = S[neuron_types == 1]  # States of excitatory neurons
-    S_inh = S[neuron_types == 0]  # States of inhibitory neurons
+    S_inh_1 = S[neuron_types == 0]  # States of first inhibitory population
 
-    patterns_exc = patterns[:, neuron_types == 1]  # Patterns for excitatory neurons
-    patterns_inh = patterns[:, neuron_types == 0]  # Patterns for inhibitory neurons
-    #print("patterns-a",patterns_exc.shape)
-    #print(S_exc.shape)
-    #print(patterns_inh.shape)
-    #print("inh",np.dot(np.array([1/N_i]) , patterns_exc).shape)
-    #print(np.dot(patterns_exc - a, S_exc).shape)
-    
-    
-    #S_exc = np.array(stochastic_spike_variable(S_exc),dtype=float)
-    #S_inh = np.array(stochastic_spike_variable(S_inh),dtype=float)
-    
-    # Compute overlaps for excitatory neurons
-    overlaps_exc = c/N*np.dot(patterns_exc - a, S_exc) - np.sum(np.dot(np.array([1/N_i]) , patterns_inh))
-    
-    print("patterns_exc", patterns_exc)
-    print("S_exc", S_exc)
-    
-    print("patterns_inh", patterns_inh)
-    print("sum patterns_inh",np.sum(patterns_inh))
+    N_exc = S_exc.shape[0]
+    N_I1 = S_inh_1.shape[0]
+    J=2.0
+    # Initialize overlaps
+    m_exc = np.zeros(num_patterns)
+    m_inh_1 = np.zeros(num_patterns)
 
-    print('S_inh', S_inh)
-    print('Positive part:',np.dot(patterns_exc - a, S_exc))
-    print("Negative part:",np.sum(np.dot(np.array([1/N_i]) , patterns_inh)))
+    if use_second_inhibitory:
+        S_inh_2 = S[neuron_types == 2]  # States of second inhibitory population
+        N_I2 = S_inh_2.shape[0]
+        m_inh_2 = np.zeros(num_patterns)
+        h_inh_2 = np.zeros(N_I2)
+        #print("type 2 neuron pop",pattern[neuron_types == 2])
+        #print("type 2 neurons state", S_inh_2)
+    # Compute overlaps for each pattern
+    m_exc = np.dot(pattern[neuron_types == 1].reshape(1,-1), S_exc.reshape(-1,1)) / N_exc
+    m_inh_1 = np.dot(pattern[neuron_types == 0].reshape(1,-1), S_inh_1.reshape(-1,1)) / N_I1
+    if use_second_inhibitory and np.mean(S_exc) > a:
+        m_inh_2 = np.dot(pattern[neuron_types == 2].reshape(1,-1), S_inh_2.reshape(-1,1)) / N_I2
     
-    # Compute overlaps for inhibitory neurons
-    overlaps_inh = 1/K
-    print("overlap inh",overlaps_inh)
-    print("overlap exc",overlaps_exc)
+    # Compute external input
+    if use_external_input:
+        h_ext = np.zeros(N_exc)
+        for i in range(N_exc):
+            h_ext[i] = J * (pattern[neuron_types == 1][i] - np.mean(patterns[:, neuron_types == 1][:,i]))
+        #print(h_ext)
+    # Compute total input to excitatory neurons
+    h_exc = np.zeros(N_exc)
+    for i in range(N_exc):
+        h_exc[i] = np.sum(pattern[neuron_types == 1][i] * (c * m_exc - c * a * m_inh_1))
+        #print("before external",h_exc[i])
+        if use_external_input:
+            h_exc[i] += h_ext[i]
+            #print("after external",h_exc[i])
+        if use_second_inhibitory and np.mean(S_exc) > a:
+            h_exc[i] = np.sum(pattern[neuron_types == 1][i] * c* (m_exc - a * m_inh_1 - a * m_inh_2 ))
+    # Compute total input to first inhibitory neurons
+    h_inh_1 = np.zeros(N_I1)
+    for k in range(N_I1):
+        h_inh_1[k] = np.sum(S_exc) / K
 
-    overlaps = np.zeros_like(S,dtype=float)
+    # Compute total input to second inhibitory neurons (only if use_second_inhibitory is True and mean activity of excitatory neurons exceeds a)
+    if use_second_inhibitory and np.sum(S_exc)/N > a:
+        for k in range(N_I2):
+            h_inh_2[k] = np.sum(S_exc) / K
 
-    overlaps[neuron_types==1] = overlaps_exc
-    overlaps[neuron_types==0] = overlaps_inh
+    # Combine the total inputs
+    h = np.zeros_like(S, dtype=float)
+    h[neuron_types == 1] = h_exc.reshape(-1,1)
+    h[neuron_types == 0] = h_inh_1.reshape(-1,1)
+    if use_second_inhibitory:
+        h[neuron_types == 2] = h_inh_2.reshape(-1,1)
 
-    return overlaps
+    return h
 
-def update_states_v4(N, W, c, patterns, a, K, N_i, state, neuron_types, theta, beta, update_mode):
-    # Ensure state is a column vector
+def synchronous_update(state, pattern, neuron_types, a, c, K, beta,theta, patterns, use_second_inhibitory=False, use_external_input= False, J=2.0):
     state = state.reshape(-1, 1)
-    state = stochastic_spike_variable(state)
-    # Compute the input field h for all neurons
-    h = compute_overlaps_exc_inh(patterns, state, neuron_types,a,K,N_i,c,N)
+    h = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns, use_second_inhibitory, use_external_input, J)
 
-    # Update the states for excitatory neurons using tanh activation function
+    
     excitatory_indices = (neuron_types == 1).reshape(-1)
-    new_state_exc = np.tanh(beta * (h[excitatory_indices] - theta))
 
-    # Update the states for inhibitory neurons (assuming no activation function is applied)
+    new_state_exc = np.tanh(beta * (h[excitatory_indices] - theta))
+    
     inhibitory_indices = (neuron_types == 0).reshape(-1)
     new_state_inh = h[inhibitory_indices]
-
+    
     new_state_exc = new_state_exc.reshape(-1, 1)
     new_state_inh = new_state_inh.reshape(-1, 1)
-    print("new_state_exc",np.unique(new_state_exc))
-    print(new_state_inh.shape)
-    # Combine the updated states into a single array
+
+    
+    
     new_state = np.zeros_like(state, dtype=float)
-    print(new_state.shape)
+    
     new_state[excitatory_indices] = new_state_exc
     new_state[inhibitory_indices] = new_state_inh
+    
+    new_state = stochastic_spike_variable(new_state)
+    return new_state,h
 
-    return new_state
 
-def stochastic_spike_variable_v2(S,neuron_types):
-    """
-    Generate a stochastic spike variable for each neuron based on its state S.
-    Probability is derived from the neuron's continuous value.
-    """
-    spikes = np.zeros(S.shape,dtype=float)
-    spikes[neuron_types==1] = np.random.binomial(1, 0.5 * (S[neuron_types==1] + 1))
-    spikes[neuron_types==0] = S[neuron_types==0]
-    return spikes
+def sequential_update(state, pattern, neuron_types, a, c, K, beta,theta, patterns, use_second_inhibitory=False, use_external_input=False, J= 2.0):
 
-def run_network_exc_inh_overlaps(N, M, N_i, K, a, c, theta,inh_prob, T, beta, update_mode = "sequetial", plot = True):
-    # Generate patterns
+
+    h_inh = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns, use_second_inhibitory, use_external_input, J)[neuron_types == 0]
+    state[neuron_types == 0 ] = stochastic_spike_variable(h_inh)
+    # Then update excitatory neurons with the new state of inhibitory neurons
+    h = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns,use_second_inhibitory, use_external_input, J)
+    h_exc = h[neuron_types == 1]
+    state[neuron_types == 1] = stochastic_spike_variable(np.tanh(beta * (h_exc - theta)))
+    return state,h
+
+def run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta,exc_prob, T, beta, plot = True,use_second_inhibitory=False, use_external_input=False , J=2.0):
+
     patterns = generate_low_activity_patterns(N, M, a)
-    #print("Patterns:\n", patterns)
-
-    
-    #plot_exc_inh(patterns, initial_state, w, neuron_types, N)
-    # Initialize retrieval accuracy list
     retrieval_accuracies = []
-    # Iterate over each pattern
-    for idx in range(M):
-        #print(f"Pattern {patterns[idx]}")
+    neuron_types_list = initialize_neuron_types(N,M,exc_prob,use_second_inhibitory)
+    retrieval_errors=[]
+    retrieval_counts = []
+    state = flip_bits_V3(patterns, a, neuron_types_list)
+    #print("Patterns", patterns)
+    #print("State", state)
+    S_exc_history = []
 
-        # Initialize neuron types
-        neuron_types = initialize_neuron_types(N, inh_prob)
-        #print("Neuron types:", neuron_types)
-    
-        # Flip bits in the initial state
-        initial_state = flip_bits(patterns[idx], 0.1, neuron_types)
-        #print("Initial state:\n", initial_state)
+    for mu in range (M):
         
-        # Create the weight matrix
-        w = create_weight_matrix(N, neuron_types, c, a, N_i, K, patterns[idx].reshape(1, -1))
-        #print("Weights:\n", np.unique(w))
-        #initial_state =initial_state.copy()
+        neuron_types = neuron_types_list[mu]
+        pattern = patterns[mu]
+        S = state[mu].reshape(-1,1)
         for i in range(T):
-            #print(f"Updating step {i}")
-            
-            initial_state = update_states_v4(N,w,c,patterns,a,K,N_i,initial_state,neuron_types,theta,beta,"sequetial")
-            initial_state = stochastic_spike_variable_v2(initial_state,neuron_types)
-            #print("State after update:", np.unique(initial_state))
-            # Call stochastic_spike_variable with the entire array
-            #initial_state = stochastic_spike_variable(initial_state)
-            #print("State after stochastic update:", np.unique(initial_state))
-            #plot_exc_inh(patterns, initial_state.reshape(1,-1), w, neuron_types, N)
-    #initial_state = stochastic_spike_variable(initial_state)
-    for pattern in patterns:
-        accuracy = 1 - hamming_distance(initial_state.T, pattern.reshape(1,-1).T) / N
-        retrieval_accuracies.append(accuracy)
-        
-    #print(np.unique(initial_state[np.where(neuron_types == 1)]))
-    #print(np.unique(initial_state))
-    if plot:
-        plot_exc_inh(patterns, initial_state.reshape(1,-1), w, neuron_types, N)
-    
-    return np.mean(retrieval_accuracies)
 
-def overlap_test():
+            S,h = synchronous_update(S, pattern, neuron_types, a, c, K, beta, theta, patterns,use_second_inhibitory=use_second_inhibitory, use_external_input=use_external_input, J=J)
+            S_exc_history.append(S[neuron_types==1])
+
+        accuracy = 1 - hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) / N
+        retrieval_accuracies.append(accuracy)
+        retrieval_errors.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]))
+        retrieval_counts.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) <= 0.05)
+
+        if plot:
+            plot_exc_inh(patterns[mu], state[mu], neuron_types, N, h)
+
+    mean_retrieval_accuracies = np.mean(retrieval_accuracies)
+    mean_retrieval_errors = np.mean(retrieval_errors)
+    std_retrieval_errors = np.std(retrieval_errors)
+    counts = np.sum(retrieval_counts)
+    return mean_retrieval_accuracies,mean_retrieval_errors,std_retrieval_errors,counts, [arr.tolist() for arr in S_exc_history]
+
+def run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta,exc_prob, T, beta, plot = True, use_second_inhibitory=False, use_external_input=False, J=2.0):
+
+    patterns = generate_low_activity_patterns(N, M, a)
+    retrieval_accuracies = []
+    neuron_types_list = initialize_neuron_types(N,M,exc_prob,use_second_inhibitory)
+    retrieval_errors=[]
+    retrieval_counts = []
+    state = flip_bits_V3(patterns, a, neuron_types_list)
+    S_exc_history = []
+    for mu in range (M):
+        
+        neuron_types = neuron_types_list[mu]
+        pattern = patterns[mu]
+        S = state[mu].reshape(-1,1)
+        for i in range(T):
+            S,h = sequential_update(S, pattern, neuron_types, a, c, K, beta, theta,patterns,use_second_inhibitory=use_second_inhibitory, use_external_input=use_external_input, J=J)
+            S_exc_history.append(S[neuron_types==1])
+        accuracy = 1 - hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) / N
+        #print(np.unique(hamming_distance_test(S[neuron_types==1],np.array(pattern)[neuron_types==1])))
+        #print(np.unique(hamming_distance_test(S[neuron_types==1], np.array(pattern)[neuron_types==1])))
+        retrieval_errors.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]))
+        retrieval_counts.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) <= 0.05)
+        retrieval_accuracies.append(np.mean(accuracy))
+        
+        #print(retrieval_accuracies)
+
+        if plot:
+            plot_exc_inh(patterns[mu], state[mu], neuron_types, N, h)
+
+    mean_retrieval_accuracies = np.mean(retrieval_accuracies)
+    mean_retrieval_errors = np.mean(retrieval_errors)
+    std_retrieval_errors = np.std(retrieval_errors)
+    counts = np.sum(retrieval_counts)
+    return mean_retrieval_accuracies,mean_retrieval_errors,std_retrieval_errors,counts, [arr.tolist() for arr in S_exc_history]
+
+def capacity_study_exc_inh(N_values, loading_values, N_i_values, K_values, update_type,use_second_population=False,use_external_input = False):
+    """Study the capacity of Hopfield networks across different sizes and loadings."""
+    results = {N: [] for N in N_values}
+    print(use_second_population)
+                
+    a = 0.5
+    c = 2 / (a * (1-a))
+    theta = 1.
+    
+    T = 50
+    beta = 4.
+    
+    for i, N in enumerate(N_values):
+        N_i = N_i_values[i]
+        K = K_values[i]
+        exc_prob = (N-N_i)/N
+        print("N",N)
+        for L in loading_values:
+            print("L",L)
+            M = int(L * N)
+            print("M",M)
+            if update_type == "synchronous":
+                retrieval_rates, mean_error, std_error, count, S_exc_history = run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot = False,use_second_inhibitory=use_second_population, use_external_input=use_external_input) 
+                print("Synchronous",mean_error,count,std_error)
+            else:
+                retrieval_rates,mean_error, std_error, count, S_exc_history = run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot = False, use_second_inhibitory=use_second_population, use_external_input=use_external_input)
+                print("Sequential",mean_error,count,std_error)
+            
+            results[N].append((count/N, std_error))
+    return results
+    # Plotting the results
+
+def plot_capacity_study(results,N_values,loading_values):
+    print("Results",results)
+    plt.figure(figsize=(10, 8))
+    for N in N_values:
+        means, stds = zip(*results[N])
+        plt.errorbar(loading_values, means, yerr=stds, label=f'N={N}')
+
+    plt.xlabel('Loading L = M/N')
+    plt.ylabel('Average Retrieved Patterns / N')
+    plt.title('Network Capacity vs Network Size')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
+def real_test():
     N = 300
-    M = 1
+    M = 3
+    
     N_i = 80
     K = 60
     a = 0.1
     c = 2 / (a * (1-a))
-    theta = 0.
+    theta = 1.0 
     inh_prob = (N-N_i)/N
-    T = 10
-    beta = 1.
+    T = 5
+    beta = 4.
     
-    run_network_exc_inh_overlaps(N, M, N_i, K, a, c, theta,inh_prob, T, beta, update_mode = "sequetial", plot = True)
+    retrivals_sequential = run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta, inh_prob, T, beta,plot=True,use_second_inhibitory=False)
+    retrievals_synchronous = run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta, inh_prob, T, beta,plot=True,use_second_inhibitory=False)
+    return retrivals_sequential,retrievals_synchronous
