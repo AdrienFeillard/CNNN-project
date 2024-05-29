@@ -372,8 +372,9 @@ def capacity_study_theta(N,M_values,a,b, theta_values,trials=10):
         patterns = generate_low_activity_patterns(N, M,a)
         
         capacities = capacity_vs_theta(patterns,N,a,b,theta_values)
-        capacities=np.reshape(capacities,(len(capacities[0]),))
         M_capacities[i]+=capacities
+
+    capacities=np.reshape(capacities,(len(capacities[0]),))
 
 
     # Plotting the results
@@ -394,23 +395,32 @@ def capacity_study_theta(N,M_values,a,b, theta_values,trials=10):
 #Ex2.6
 
 
-def simulate_capacity(N, M, activity, theta, beta=4, iterations=100):
-    patterns = generate_low_activity_patterns(N, M, activity)
-    retrieved_patterns = 0
+def capacity_study_V2(N_values,a,theta, loading_values, trials=10):
+    """Study the capacity of Hopfield networks across different sizes and loadings."""
+    results = {N: [] for N in N_values}
 
-    for _ in range(iterations):
-        initial_state = np.random.choice([0, 1], N, p=[1-activity, activity])
-        state = initial_state
+    for N in N_values:
+        print(N)
+        for L in loading_values:
+            M = int(L * N)
+            mean_retrieval_rate,std_retrieval_rate,_=run_low_activity_simulation_dictionary(M,a, theta) 
+            results[N].append((mean_retrieval_rate, std_retrieval_rate))
+ 
 
-        for t in range(20):  # Run for a certain number of time steps
-            overlaps= compute_overlaps(patterns, state, activity)
-            state = update_states_with_overlaps(patterns,overlaps,[theta], beta,activity)
+  
+    # Plotting the results
+    plt.figure(figsize=(8, 6))
+    for N in N_values:
+        means, stds = zip(*results[N])
+        plt.errorbar(loading_values, means, yerr=stds, label=f'N={N}')
 
-        # Check if the first pattern is retrieved
-        if hamming_distance(state, patterns[0]) <= 0.05:
-            retrieved_patterns += 1
-
-    return retrieved_patterns / iterations
+    plt.xlabel('Loading L = M/N')
+    plt.ylabel('Average Retrieved Patterns / N')
+    plt.title('Network Capacity vs Network Size')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("./Figures/Network Capacity vs Network size")
+    plt.show()
 
 
 ###################################################### Exercice 3 ################################################################
@@ -447,7 +457,9 @@ def initialize_neuron_types(N, M, p_exc=0.8, include_second_inhibitory=False):
         neuron_types_list.append(neuron_types)
     return neuron_types_list
 
+
 import numpy as np
+
 
 def flip_bits_V3(patterns, c, neuron_types, include_second_inhibitory=False):
     """
@@ -487,6 +499,8 @@ def flip_bits_V3(patterns, c, neuron_types, include_second_inhibitory=False):
         initial_state_list.append(pattern_flipped.reshape(1, -1))
 
     return initial_state_list
+
+
 def hamming_distance_V3(P1, P2):
     """Compute the Hamming distance between two binary vectors."""
     """
@@ -496,15 +510,17 @@ def hamming_distance_V3(P1, P2):
     return (P1.shape[0] - np.dot(P1.reshape(1,-1), P2.reshape(-1,1))) / (2 * P1.shape[0])
     """
     #print(P1.ravel(),P2.ravel())
-    return np.sum(P1.ravel() !=P2.ravel())/(2*P1.shape[0])
+    return np.sum(P1.ravel() != P2.ravel()) / (2 * P1.shape[0])
 
-def plot_exc_inh(patterns, initial_state, neuron_types, N,h):
+
+def plot_exc_inh(patterns, initial_state, neuron_types, N, h):
     # Filter to include only excitatory neurons for pattern and state
     excitatory_indices = np.where(neuron_types == 1)[0]
-    patterns= patterns.reshape(1,-1)
+    inhibitory_indices = np.where(neuron_types == 0)[0]
+    patterns = patterns.reshape(1, -1)
     patterns_excitatory = patterns[:, excitatory_indices]
     initial_state_excitatory = initial_state[:, excitatory_indices]
-    
+
     # Plotting
     fig, axes = plt.subplots(1, 4, figsize=(24, 6))  # Adjusted size to accommodate four plots
 
@@ -514,21 +530,86 @@ def plot_exc_inh(patterns, initial_state, neuron_types, N,h):
     sns.heatmap(initial_state_excitatory, ax=axes[1], cmap='viridis', cbar=False, annot=False)
     axes[1].set_title('Excitatory Neurons - Initial State')
 
-    
-    
-
     # Plotting the neuron types
-    neuron_type_map = neuron_types.reshape(N,1 )  # Reshape for heatmap compatibility
+    neuron_type_map = neuron_types.reshape(N, 1)  # Reshape for heatmap compatibility
     sns.heatmap(neuron_type_map, ax=axes[2], cmap='coolwarm', cbar=False, annot=False)
     axes[2].set_title('Neuron Types (Red = Excitatory, Blue = Inhibitory)')
 
-    sns.heatmap(h.reshape(-1,1), ax=axes[3], cmap='viridis', cbar=False, annot=False)
+    sns.heatmap(h.reshape(-1, 1), ax=axes[3], cmap='viridis', cbar=False, annot=False)
     axes[3].set_title('Overlap function h')
 
     plt.tight_layout()
     plt.show()
 
-def compute_h_in_terms_of_overlaps(pattern, S, neuron_types, a, c, K, patterns, use_second_inhibitory, use_external_input,J):
+
+def plot_exc_inh_external(patterns, states_over_time, neuron_types_list, N, overlaps):
+    # Plot overlap values
+    fig2, ax2 = plt.subplots(figsize=(12, 6))
+
+    num_positions = len(next(iter(overlaps.values())))
+    positions = list(range(num_positions))
+
+    for iteration, (key, values) in enumerate(overlaps.items()):
+        ax2.plot(positions, values, label=f'Pattern {key + 1}', marker='o')
+
+    ax2.set_xlabel('Iteration')
+    ax2.set_ylabel('Overlap Value')
+    ax2.set_title('Overlap Values as a Function of Iteration')
+    ax2.legend()
+    ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+    # Create combined raster plots for excitatory and inhibitory neurons
+    fig, (ax3, ax4) = plt.subplots(2, 1, figsize=(16, 12), sharex=True)
+
+    # Colors for each pattern
+    colors = sns.color_palette("husl", len(patterns))
+
+    # Combined raster plot for excitatory neurons
+    offset = 0
+    for mu in range(len(patterns)):
+        neuron_types = neuron_types_list[mu]
+        states = states_over_time[mu]
+
+        excitatory_indices = np.where(neuron_types == 1)[0]
+        for neuron_idx, neuron_id in enumerate(excitatory_indices):
+            spike_times = [t for t, state in enumerate(states) if state[neuron_id] == 1]
+            ax3.eventplot(spike_times, lineoffsets=neuron_idx + offset, linelengths=0.9, colors=[colors[mu]])
+
+        ax3.text(-5, offset + len(excitatory_indices) / 2, f'Pattern {mu + 1}', va='center', ha='right', fontsize=10, color='white')
+        offset += len(excitatory_indices)
+        ax3.axhline(y=offset - 0.5, color='gray', linestyle='--')  # Add horizontal line to separate patterns
+
+    ax3.set_title('Combined Raster Plot - Excitatory Neurons')
+    ax3.set_ylabel('Neuron Index')
+
+    # Combined raster plot for inhibitory neurons
+    offset = 0
+    for mu in range(len(patterns)):
+        neuron_types = neuron_types_list[mu]
+        states = states_over_time[mu]
+
+        inhibitory_indices = np.where(neuron_types == 0)[0]
+        for neuron_idx, neuron_id in enumerate(inhibitory_indices):
+            spike_times = [t for t, state in enumerate(states) if state[neuron_id] == 1]
+            ax4.eventplot(spike_times, lineoffsets=neuron_idx + offset, linelengths=0.9, colors=[colors[mu]])
+
+        ax4.text(-5, offset + len(inhibitory_indices) / 2, f'Pattern {mu + 1}', va='center', ha='right', fontsize=10, color='white')
+        offset += len(inhibitory_indices)
+        ax4.axhline(y=offset - 0.5, color='gray', linestyle='--')  # Add horizontal line to separate patterns
+
+    ax4.set_title('Combined Raster Plot - Inhibitory Neurons')
+    ax4.set_ylabel('Neuron Index')
+    ax4.set_xlabel('Time Step')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def compute_h_in_terms_of_overlaps(pattern, S, neuron_types, a, c, K, patterns, use_second_inhibitory,
+                                   use_external_input, J):
     """
     Compute the total input h for excitatory and inhibitory neurons in terms of the overlap variables.
 
@@ -553,11 +634,12 @@ def compute_h_in_terms_of_overlaps(pattern, S, neuron_types, a, c, K, patterns, 
 
     N_exc = S_exc.shape[0]
     N_I1 = S_inh_1.shape[0]
-    J=2.0
+    J = 2.0
+
     # Initialize overlaps
     m_exc = np.zeros(num_patterns)
     m_inh_1 = np.zeros(num_patterns)
-
+    overlap = 0.0
     if use_second_inhibitory:
         S_inh_2 = S[neuron_types == 2]  # States of second inhibitory population
         N_I2 = S_inh_2.shape[0]
@@ -566,195 +648,253 @@ def compute_h_in_terms_of_overlaps(pattern, S, neuron_types, a, c, K, patterns, 
         #print("type 2 neuron pop",pattern[neuron_types == 2])
         #print("type 2 neurons state", S_inh_2)
     # Compute overlaps for each pattern
-    m_exc = np.dot(pattern[neuron_types == 1].reshape(1,-1), S_exc.reshape(-1,1)) / N
-    m_inh_1 = np.dot(pattern[neuron_types == 0].reshape(1,-1), S_inh_1.reshape(-1,1)) / N_I1
+    m_exc = np.dot(pattern[neuron_types == 1].reshape(1, -1), S_exc.reshape(-1, 1)) / N
+
+    if N_I1 != 0:
+        m_inh_1 = np.sum(S_inh_1.reshape(-1, 1)) / N_I1
+    else:
+        m_inh_1 = 0.0
     if use_second_inhibitory and np.mean(S_exc) > a:
-        m_inh_2 = np.dot(pattern[neuron_types == 2].reshape(1,-1), S_inh_2.reshape(-1,1)) / N_I2
-    
+        if N_I2 != 0:
+            m_inh_2 = np.sum(S_inh_2.reshape(-1, 1)) / N_I2
+        else:
+            m_inh2 = 0
+
     # Compute external input
     if use_external_input:
         h_ext = np.zeros(N_exc)
         for i in range(N_exc):
-            h_ext[i] = J * (pattern[neuron_types == 1][i] - np.mean(patterns[:, neuron_types == 1][:,i]))
+            h_ext[i] = J * (pattern[neuron_types == 1][i] - np.mean(patterns[:, neuron_types == 1][:, i]))
         #print(h_ext)
-    # Compute total input to excitatory neurons
+
     h_exc = np.zeros(N_exc)
     for i in range(N_exc):
         h_exc[i] = np.sum(pattern[neuron_types == 1][i] * (c * m_exc - c * a * m_inh_1))
+        overlap = c * m_exc - c * a * m_inh_1
         #print("before external",h_exc[i])
         if use_external_input:
             h_exc[i] += h_ext[i]
             #print("after external",h_exc[i])
         if use_second_inhibitory and np.mean(S_exc) > a:
-            h_exc[i] = np.sum(pattern[neuron_types == 1][i] * c* (m_exc - a * m_inh_1 - a * m_inh_2 ))
+            h_exc[i] = np.sum(pattern[neuron_types == 1][i] * c * (m_exc - a * m_inh_1 - a * m_inh_2))
+            overlap = c * m_exc - c * a * m_inh_1 - a * m_inh_2
     # Compute total input to first inhibitory neurons
     h_inh_1 = np.zeros(N_I1)
     for k in range(N_I1):
-        h_inh_1[k] = 1 / K
-    # Compute total input to second inhibitory neurons (only if use_second_inhibitory is True and mean activity of excitatory neurons exceeds a)
-    if use_second_inhibitory and np.sum(S_exc)/N > a:
+        h_inh_1[k] = 1 / K * S_inh_1[k]
+
+    if use_second_inhibitory and np.sum(S_exc) / N > a:
         for k in range(N_I2):
-            h_inh_2[k] = 1 / K
+            h_inh_2[k] = 1 / K * S_inh_2[k]
 
     # Combine the total inputs
     h = np.zeros_like(S, dtype=float)
-    h[neuron_types == 1] = h_exc.reshape(-1,1)
-    h[neuron_types == 0] = h_inh_1.reshape(-1,1)
+    h[neuron_types == 1] = h_exc.reshape(-1, 1)
+    h[neuron_types == 0] = h_inh_1.reshape(-1, 1)
+    """print("h_exc",h_exc)
+    print("h_inh_1",h_inh_1)"""
     if use_second_inhibitory:
-        h[neuron_types == 2] = h_inh_2.reshape(-1,1)
+        h[neuron_types == 2] = h_inh_2.reshape(-1, 1)
 
-    return h
+    return h, overlap
 
-def synchronous_update(state, pattern, neuron_types, a, c, K, beta,theta, patterns, use_second_inhibitory=False, use_external_input= False, J=2.0):
+
+def synchronous_update(state, pattern, neuron_types, a, c, K, beta, theta, patterns, use_second_inhibitory=False,
+                       use_external_input=False, J=2.0):
     state = state.reshape(-1, 1)
-    h = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns, use_second_inhibitory, use_external_input, J)
+    h, overlap = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns, use_second_inhibitory,
+                                                use_external_input, J)
 
-    
     excitatory_indices = (neuron_types == 1).reshape(-1)
 
     new_state_exc = np.tanh(beta * (h[excitatory_indices] - theta))
-    
+
     inhibitory_indices = (neuron_types == 0).reshape(-1)
     new_state_inh = h[inhibitory_indices]
-    
+
     new_state_exc = new_state_exc.reshape(-1, 1)
     new_state_inh = new_state_inh.reshape(-1, 1)
 
-    
-    
     new_state = np.zeros_like(state, dtype=float)
-    
+
     new_state[excitatory_indices] = new_state_exc
     new_state[inhibitory_indices] = new_state_inh
-    
+
     new_state = stochastic_spike_variable(new_state)
-    return new_state,h
+    return new_state, h, overlap
 
 
-def sequential_update(state, pattern, neuron_types, a, c, K, beta,theta, patterns, use_second_inhibitory=False, use_external_input=False, J= 2.0):
-
-
-    h_inh = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns, use_second_inhibitory, use_external_input, J)[neuron_types == 0]
-    state[neuron_types == 0 ] = stochastic_spike_variable(h_inh)
+def sequential_update(state, pattern, neuron_types, a, c, K, beta, theta, patterns, use_second_inhibitory=False,
+                      use_external_input=False, J=2.0):
+    h_inh, overlap = \
+        compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns, use_second_inhibitory,
+                                       use_external_input, J)
+    state[neuron_types == 0] = stochastic_spike_variable(h_inh[neuron_types == 0])
     # Then update excitatory neurons with the new state of inhibitory neurons
-    h = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns,use_second_inhibitory, use_external_input, J)
+    h, overlap = compute_h_in_terms_of_overlaps(pattern, state, neuron_types, a, c, K, patterns, use_second_inhibitory,
+                                                use_external_input, J)
     h_exc = h[neuron_types == 1]
     state[neuron_types == 1] = stochastic_spike_variable(np.tanh(beta * (h_exc - theta)))
-    return state,h
+    return state, h, overlap
 
-def run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta,exc_prob, T, beta, plot = True,use_second_inhibitory=False, use_external_input=False , J=2.0):
 
+def run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot=True,
+                                    use_second_inhibitory=False, use_external_input=False, J=2.0):
     patterns = generate_low_activity_patterns(N, M, a)
     retrieval_accuracies = []
-    neuron_types_list = initialize_neuron_types(N,M,exc_prob,use_second_inhibitory)
-    retrieval_errors=[]
+    neuron_types_list = initialize_neuron_types(N, M, exc_prob, use_second_inhibitory)
+    retrieval_errors = []
     retrieval_counts = []
     state = flip_bits_V3(patterns, a, neuron_types_list)
     #print("Patterns", patterns)
     #print("State", state)
-    S_exc_history = []
+    S_exc_history = {mu: [] for mu in range(M)}
+    overlaps = {mu: [] for mu in range(M)}
 
-    for mu in range (M):
-        
+    for mu in range(M):
+
         neuron_types = neuron_types_list[mu]
         pattern = patterns[mu]
-        S = state[mu].reshape(-1,1)
+        S = state[mu].reshape(-1, 1)
         for i in range(T):
+            if use_external_input and i < 5:
+                S, h, overlap = synchronous_update(S, pattern, neuron_types, a, c, K, beta, theta, patterns,
+                                                   use_second_inhibitory=use_second_inhibitory,
+                                                   use_external_input=use_external_input, J=J)
+            else:
+                S, h, overlap = synchronous_update(S, pattern, neuron_types, a, c, K, beta, theta, patterns,
+                                                   use_second_inhibitory=use_second_inhibitory,
+                                                   use_external_input=False, J=J)
 
-            S,h = synchronous_update(S, pattern, neuron_types, a, c, K, beta, theta, patterns,use_second_inhibitory=use_second_inhibitory, use_external_input=use_external_input, J=J)
-            S_exc_history.append(S[neuron_types==1])
-
-        accuracy = 1 - hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) / N
+            overlaps[mu].append(overlap.item())
+            print(overlap.item())
+            S_exc_history[mu].append(S.copy())
+        accuracy = 1 - hamming_distance_V3(S[neuron_types == 1], np.array(pattern)[neuron_types == 1]) / N
         retrieval_accuracies.append(accuracy)
-        retrieval_errors.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]))
-        retrieval_counts.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) <= 0.05)
-
-        if plot:
-            plot_exc_inh(patterns[mu], state[mu], neuron_types, N, h)
+        retrieval_errors.append(hamming_distance_V3(S[neuron_types == 1], np.array(pattern)[neuron_types == 1]))
+        retrieval_counts.append(hamming_distance_V3(S[neuron_types == 1], np.array(pattern)[neuron_types == 1]) <= 0.05)
+    if plot:
+        plot_exc_inh_external(patterns, S_exc_history, neuron_types_list, N, overlaps)
 
     mean_retrieval_accuracies = np.mean(retrieval_accuracies)
     mean_retrieval_errors = np.mean(retrieval_errors)
     std_retrieval_errors = np.std(retrieval_errors)
     counts = np.sum(retrieval_counts)
-    return mean_retrieval_accuracies,mean_retrieval_errors,std_retrieval_errors,counts, [arr.tolist() for arr in S_exc_history]
+    return mean_retrieval_accuracies, mean_retrieval_errors, std_retrieval_errors, counts
 
-def run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta,exc_prob, T, beta, plot = True, use_second_inhibitory=False, use_external_input=False, J=2.0):
 
+def run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot=True, use_second_inhibitory=False,
+                                   use_external_input=False, J=2.0):
     patterns = generate_low_activity_patterns(N, M, a)
     retrieval_accuracies = []
-    neuron_types_list = initialize_neuron_types(N,M,exc_prob,use_second_inhibitory)
-    retrieval_errors=[]
+    neuron_types_list = initialize_neuron_types(N, M, exc_prob, use_second_inhibitory)
+    retrieval_errors = []
     retrieval_counts = []
     state = flip_bits_V3(patterns, a, neuron_types_list)
-    S_exc_history = []
-    for mu in range (M):
-        
+    S_history = {mu: [] for mu in range(M)}
+    overlaps = {mu: [] for mu in range(M)}
+    for mu in range(M):
+
         neuron_types = neuron_types_list[mu]
         pattern = patterns[mu]
-        S = state[mu].reshape(-1,1)
+        S = state[mu].reshape(-1, 1)
         for i in range(T):
-            S,h = sequential_update(S, pattern, neuron_types, a, c, K, beta, theta,patterns,use_second_inhibitory=use_second_inhibitory, use_external_input=use_external_input, J=J)
-            S_exc_history.append(S[neuron_types==1])
-        accuracy = 1 - hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) / N
+            if use_external_input and i < 5:
+                S, h, overlap = sequential_update(S, pattern, neuron_types, a, c, K, beta, theta, patterns,
+                                                  use_second_inhibitory=use_second_inhibitory,
+                                                  use_external_input=use_external_input,
+                                                  J=J)
+            else:
+                S, h, overlap = sequential_update(S, pattern, neuron_types, a, c, K, beta, theta, patterns,
+                                                  use_second_inhibitory=use_second_inhibitory,
+                                                  use_external_input=False,
+                                                  J=J)
+            overlaps[mu].append(overlap.item())
+            S_history[mu].append(S.copy())
+
+        accuracy = 1 - hamming_distance_V3(S[neuron_types == 1], np.array(pattern)[neuron_types == 1]) / N
         #print(np.unique(hamming_distance_test(S[neuron_types==1],np.array(pattern)[neuron_types==1])))
         #print(np.unique(hamming_distance_test(S[neuron_types==1], np.array(pattern)[neuron_types==1])))
-        retrieval_errors.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]))
-        retrieval_counts.append(hamming_distance_V3(S[neuron_types==1], np.array(pattern)[neuron_types==1]) <= 0.05)
+        retrieval_errors.append(hamming_distance_V3(S[neuron_types == 1], np.array(pattern)[neuron_types == 1]))
+        retrieval_counts.append(hamming_distance_V3(S[neuron_types == 1], np.array(pattern)[neuron_types == 1]) <= 0.05)
         retrieval_accuracies.append(np.mean(accuracy))
-        
+
         #print(retrieval_accuracies)
 
-        if plot:
-            plot_exc_inh(patterns[mu], state[mu], neuron_types, N, h)
+    if plot:
+        plot_exc_inh_external(patterns, S_history, neuron_types_list, N, overlaps)
 
     mean_retrieval_accuracies = np.mean(retrieval_accuracies)
     mean_retrieval_errors = np.mean(retrieval_errors)
     std_retrieval_errors = np.std(retrieval_errors)
     counts = np.sum(retrieval_counts)
-    return mean_retrieval_accuracies,mean_retrieval_errors,std_retrieval_errors,counts, [arr.tolist() for arr in S_exc_history]
+    return mean_retrieval_accuracies, mean_retrieval_errors, std_retrieval_errors, counts
 
-def capacity_study_exc_inh(N_values, loading_values, N_i_values, K_values, update_type,use_second_population=False,use_external_input = False):
+
+def capacity_study_exc_inh(N_values, loading_values, N_i_values, K_values, update_type, use_second_population=False,
+                           use_external_input=False):
     """Study the capacity of Hopfield networks across different sizes and loadings."""
     results = {N: [] for N in N_values}
     print(use_second_population)
-                
+
     a = 0.1
-    c = 2 / (a * (1-a))
+    c = 2 / (a * (1 - a))
     theta = 1.
-    
+
     T = 50
     beta = 4.
-    
+
     for i, N in enumerate(N_values):
         N_i = N_i_values[i]
         K = K_values[i]
-        exc_prob = (N-N_i)/N
-        print("N",N)
+        exc_prob = (N - N_i) / N
+        print("N", N)
         for L in loading_values:
-            print("L",L)
+            print("L", L)
             M = int(L * N)
-            print("M",M)
-            if update_type == "synchronous":
-                retrieval_rates, mean_error, std_error, count, S_exc_history = run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot = False,use_second_inhibitory=use_second_population, use_external_input=use_external_input) 
-                print("Synchronous",mean_error,count,std_error)
-            else:
-                retrieval_rates,mean_error, std_error, count, S_exc_history = run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot = False, use_second_inhibitory=use_second_population, use_external_input=use_external_input)
-                print("Sequential",mean_error,count,std_error)
-            
-            results[N].append((count/N, std_error))
-    return results
-    # Plotting the results
+            print("M", M)
+            mean_count = []
+            for j in range(5):
+                if update_type == "synchronous":
+                    retrieval_rates, mean_error, std_error, count = run_network_exc_inh_synchronous(
+                        N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot=False,
+                        use_second_inhibitory=use_second_population, use_external_input=use_external_input)
+                    print("Synchronous", j, "", mean_error, count, std_error)
+                else:
+                    retrieval_rates, mean_error, std_error, count = run_network_exc_inh_sequential(
+                        N, M, N_i, K, a, c, theta, exc_prob, T, beta, plot=False,
+                        use_second_inhibitory=use_second_population, use_external_input=use_external_input)
+                    print("Sequential", j, "", mean_error, count, std_error)
+                mean_count.append(count)
 
-def plot_capacity_study(results,N_values,loading_values):
-    print("Results",results)
+            mean_count_value = np.mean(mean_count)
+            std_count_value = np.std(mean_count)
+            results[N].append((mean_count_value, std_count_value))
+
+    return results
+
+
+def plot_capacity_study(results, N_values, loading_values, title):
+    print("Results", results)
     plt.figure(figsize=(10, 8))
     for N in N_values:
         means, stds = zip(*results[N])
-        plt.errorbar(loading_values, means, yerr=stds, label=f'N={N}')
+        means = np.array(means) / N  # Convert to array for element-wise division
+        stds = np.std(means)
+        plt.errorbar(
+            loading_values, means, yerr=stds,
+            label=f'N = {N}',
+            fmt='o-',  # Marker style
+            capsize=5,  # Length of the error bar caps
+            elinewidth=1.5,  # Width of the error bar lines
+            markeredgewidth=1.5,  # Width of the marker edges
+            capthick=1.5,  # Thickness of the caps
+            markersize=6  # Size of the markers
+        )
 
     plt.xlabel('Loading L = M/N')
     plt.ylabel('Average Retrieved Patterns / N')
-    plt.title('Network Capacity vs Network Size')
+    plt.title(title)
     plt.legend()
     plt.grid(True)
     plt.show()
@@ -763,16 +903,18 @@ def plot_capacity_study(results,N_values,loading_values):
 def real_test():
     N = 300
     M = 3
-    
+
     N_i = 80
     K = 60
     a = 0.1
-    c = 2 / (a * (1-a))
-    theta = 1.0 
-    inh_prob = (N-N_i)/N
+    c = 2 / (a * (1 - a))
+    theta = 1.0
+    inh_prob = (N - N_i) / N
     T = 5
     beta = 4.
-    
-    retrivals_sequential = run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta, inh_prob, T, beta,plot=True,use_second_inhibitory=False)
-    retrievals_synchronous = run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta, inh_prob, T, beta,plot=True,use_second_inhibitory=False)
-    return retrivals_sequential,retrievals_synchronous
+
+    retrivals_sequential = run_network_exc_inh_sequential(N, M, N_i, K, a, c, theta, inh_prob, T, beta, plot=True,
+                                                          use_second_inhibitory=False)
+    retrievals_synchronous = run_network_exc_inh_synchronous(N, M, N_i, K, a, c, theta, inh_prob, T, beta, plot=True,
+                                                             use_second_inhibitory=False)
+    return retrivals_sequential, retrievals_synchronous
